@@ -9,11 +9,15 @@ import { CalendarView } from './components/CalendarView'
 import { TagSystem, TagFilter } from './components/TagSystem'
 import { RageClick } from './components/RageClick'
 import { AIAxiety } from './components/AIAxiety'
+import { EmotionReport } from './components/EmotionReport'
+import { CanvasDraw } from './components/CanvasDraw'
+import { PuzzleGame } from './components/PuzzleGame'
+import { MusicPlayer } from './components/MusicPlayer'
 import { useSoundEffects } from './hooks/useSoundEffects'
 import { useAchievements } from './hooks/useAchievements'
 
 type EffectType = 'confetti' | 'particles' | 'shockwave' | 'fire' | 'all'
-type ViewType = 'vent' | 'rage' | 'ai-anxiety' | 'calendar' | 'achievements'
+type ViewType = 'vent' | 'rage' | 'draw' | 'ai-anxiety' | 'report' | 'calendar' | 'achievements' | 'puzzle' | 'music'
 
 interface VentEntry {
   id: string
@@ -123,6 +127,116 @@ export default function Home() {
 
     // Check achievements
     checkAchievements(newVent, usedEffects)
+
+    // Switch back to vent view
+    setCurrentView('vent')
+  }
+
+  // Handle drawing complete
+  const handleDrawingComplete = (imageData: string, drawIntensity: number) => {
+    // Play sound based on intensity
+    playExplosion(drawIntensity)
+
+    // Create a vent entry for the drawing
+    const drawVent: VentEntry = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      content: `🎨 涂鸦发泄！\n情绪强度: ${drawIntensity}\n\n[涂鸦已保存到历史记录]`,
+      intensity: drawIntensity,
+      tags: ['#涂鸦发泄'],
+    }
+
+    // Save the drawing with image reference (in a real app, you'd upload the image)
+    saveVents([drawVent, ...vents])
+
+    // Check achievements
+    checkAchievements(drawVent, usedEffects)
+
+    // Trigger explosion if intensity is high
+    if (drawIntensity >= 4) {
+      triggerExplosion()
+    }
+
+    // Show encouragement
+    const encouragements = [
+      '涂鸦发泄完了，心情好点了吗？🎨',
+      '艺术是最好的情绪出口！✨',
+      '你的创造力很棒！💪',
+    ]
+    setEncouragementText(encouragements[Math.floor(Math.random() * encouragements.length)])
+    setShowEncouragement(true)
+    setTimeout(() => setShowEncouragement(false), 3000)
+
+    // Switch back to vent view
+    setCurrentView('vent')
+  }
+
+  // Handle puzzle complete
+  const handlePuzzleComplete = (data: any, intensity: number) => {
+    // Play sound based on intensity
+    playExplosion(intensity)
+
+    // Create a vent entry for the puzzle completion
+    const puzzleVent: VentEntry = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      content: data.content,
+      intensity,
+      tags: ['#拼图发泄'],
+    }
+
+    // Save the puzzle completion
+    saveVents([puzzleVent, ...vents])
+
+    // Check achievements
+    checkAchievements(puzzleVent, usedEffects)
+
+    // Trigger explosion
+    triggerExplosion()
+
+    // Show encouragement
+    const encouragements = [
+      '拼图完成，心情好点了吗？🧩',
+      '专注力真棒！✨',
+      '来放松一下吧！💪',
+    ]
+    setEncouragementText(encouragements[Math.floor(Math.random() * encouragements.length)])
+    setShowEncouragement(true)
+    setTimeout(() => setShowEncouragement(false), 3000)
+
+    // Switch back to vent view
+    setCurrentView('vent')
+  }
+
+  // Handle music complete
+  const handleMusicComplete = (data: any, intensity: number) => {
+    // Play click sound
+    playClick()
+
+    // Create a vent entry for the music session
+    const musicVent: VentEntry = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      content: data.content,
+      intensity,
+      tags: ['#音乐发泄'],
+    }
+
+    // Save the music session
+    saveVents([musicVent, ...vents])
+
+    // Check achievements
+    checkAchievements(musicVent, usedEffects)
+
+    // Show encouragement
+    const encouragements = [
+      '音乐是心灵的良药！🎵',
+      '希望音乐让你感觉好一些！✨',
+      '继续用音乐治愈自己吧！💪',
+    ]
+    setEncouragementText(encouragements[Math.floor(Math.random() * encouragements.length)])
+    setShowEncouragement(true)
+    setTimeout(() => setShowEncouragement(false), 3000)
 
     // Switch back to vent view
     setCurrentView('vent')
@@ -449,10 +563,10 @@ export default function Home() {
           </div>
 
           {/* View Navigation */}
-          <div className="grid grid-cols-5 gap-2 mb-4">
+          <div className="grid grid-cols-3 gap-2 mb-4">
             <button
               onClick={() => setCurrentView('vent')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-sm ${
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
                 currentView === 'vent'
                   ? 'bg-red-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -462,7 +576,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setCurrentView('rage')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-sm ${
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
                 currentView === 'rage'
                   ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -471,8 +585,18 @@ export default function Home() {
               🤬 狂点
             </button>
             <button
+              onClick={() => setCurrentView('draw')}
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+                currentView === 'draw'
+                  ? 'bg-gradient-to-r from-pink-600 to-purple-500 text-white'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+              }`}
+            >
+              🎨 涂鸦
+            </button>
+            <button
               onClick={() => setCurrentView('ai-anxiety')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-sm ${
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
                 currentView === 'ai-anxiety'
                   ? 'bg-gradient-to-r from-purple-600 to-blue-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -481,8 +605,40 @@ export default function Home() {
               🤖 AI焦虑
             </button>
             <button
+              onClick={() => setCurrentView('puzzle')}
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+                currentView === 'puzzle'
+                  ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+              }`}
+            >
+              🧩 拼图
+            </button>
+            <button
+              onClick={() => setCurrentView('music')}
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+                currentView === 'music'
+                  ? 'bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+              }`}
+            >
+              🎵 音乐
+            </button>
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            <button
+              onClick={() => setCurrentView('report')}
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+                currentView === 'report'
+                  ? 'bg-gradient-to-r from-green-600 to-teal-500 text-white'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+              }`}
+            >
+              📊 报告
+            </button>
+            <button
               onClick={() => setCurrentView('calendar')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-sm ${
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
                 currentView === 'calendar'
                   ? 'bg-red-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -492,7 +648,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setCurrentView('achievements')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-sm ${
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
                 currentView === 'achievements'
                   ? 'bg-red-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -658,6 +814,26 @@ export default function Home() {
         {/* AI Anxiety View */}
         {currentView === 'ai-anxiety' && (
           <AIAxiety onVent={handleAIAxietyVent} />
+        )}
+
+        {/* Canvas Draw View */}
+        {currentView === 'draw' && (
+          <CanvasDraw onDrawingComplete={handleDrawingComplete} />
+        )}
+
+        {/* Puzzle Game View */}
+        {currentView === 'puzzle' && (
+          <PuzzleGame onComplete={handlePuzzleComplete} />
+        )}
+
+        {/* Music Player View */}
+        {currentView === 'music' && (
+          <MusicPlayer onComplete={handleMusicComplete} vents={vents} />
+        )}
+
+        {/* Emotion Report View */}
+        {currentView === 'report' && (
+          <EmotionReport vents={vents} />
         )}
 
         {/* Vent History */}
