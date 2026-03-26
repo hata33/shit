@@ -1,0 +1,26 @@
+# Test files
+**/*.test.ts
+**/*.test.tsx
+**/*.spec.ts
+**/*.spec.tsx
+
+# Development files
+.vscode
+.idea
+*.log
+
+# Build artifacts (Vercel handles this)
+.next
+out
+dist
+build
+
+# CI/CD
+.github
+.gitlab-ci.yml
+
+# Documentation (optional)
+README.md
+CHANGELOG.md
+TODO.md
+CLAUDE.md

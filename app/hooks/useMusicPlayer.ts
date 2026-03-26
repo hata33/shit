@@ -11,6 +11,7 @@ export function useMusicPlayer() {
   const [playlist, setPlaylist] = useState<MusicTrack[]>(MUSIC_LIBRARY)
   const [currentIndex, setCurrentIndex] = useState(0)
   const [selectedMood, setSelectedMood] = useState<MusicTrack['mood'] | 'all'>('all')
+  const [shouldPlay, setShouldPlay] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
@@ -30,23 +31,29 @@ export function useMusicPlayer() {
         playNext()
       }
 
-      const handleLoad = () => {
-        setCurrentTime(0)
+      const handleCanPlay = () => {
+        if (shouldPlay && audio.src) {
+          audio.play().catch(err => {
+            console.error('Play error:', err)
+            setIsPlaying(false)
+          })
+          setShouldPlay(false)
+        }
       }
 
       audio.addEventListener('timeupdate', handleTimeUpdate)
       audio.addEventListener('ended', handleEnded)
-      audio.addEventListener('loadedmetadata', handleLoad)
+      audio.addEventListener('canplay', handleCanPlay)
 
       return () => {
         audio.removeEventListener('timeupdate', handleTimeUpdate)
         audio.removeEventListener('ended', handleEnded)
-        audio.removeEventListener('loadedmetadata', handleLoad)
+        audio.removeEventListener('canplay', handleCanPlay)
         audio.pause()
         audio.src = ''
       }
     }
-  }, [])
+  }, [shouldPlay])
 
   // Update volume
   useEffect(() => {
@@ -55,35 +62,59 @@ export function useMusicPlayer() {
     }
   }, [volume])
 
-  // Load track
+  // Load track when currentTrack changes
   useEffect(() => {
     if (currentTrack && audioRef.current) {
-      audioRef.current.src = currentTrack.url
-      if (isPlaying) {
-        audioRef.current.play().catch(console.error)
+      const audio = audioRef.current
+
+      // Pause and reset current playback
+      audio.pause()
+      audio.currentTime = 0
+      setCurrentTime(0)
+
+      // Load new source
+      audio.src = currentTrack.url
+      audio.load()
+
+      // If we want to play, wait for canplay event
+      if (shouldPlay) {
+        // The canplay event handler will take care of playing
+      } else {
+        // Just load, don't play
+        setIsPlaying(false)
       }
     }
-  }, [currentTrack])
+  }, [currentTrack, shouldPlay])
 
   const playTrack = useCallback((track: MusicTrack, index: number) => {
     setCurrentTrack(track)
     setCurrentIndex(index)
     setIsPlaying(true)
+    setShouldPlay(true)
+
     if (audioRef.current) {
+      audioRef.current.pause()
       audioRef.current.src = track.url
-      audioRef.current.play().catch(console.error)
+      audioRef.current.load()
     }
   }, [])
 
   const togglePlay = useCallback(() => {
     if (!currentTrack || !audioRef.current) return
 
+    const audio = audioRef.current
+
     if (isPlaying) {
-      audioRef.current.pause()
+      audio.pause()
+      setIsPlaying(false)
     } else {
-      audioRef.current.play().catch(console.error)
+      audio.play()
+        .then(() => setIsPlaying(true))
+        .catch(err => {
+          console.error('Toggle play error:', err)
+          setIsPlaying(false)
+        })
     }
-    setIsPlaying(!isPlaying)
   }, [currentTrack, isPlaying])
 
   const playNext = useCallback(() => {
@@ -112,8 +143,10 @@ export function useMusicPlayer() {
     }
     setCurrentIndex(0)
     setIsPlaying(false)
+    setShouldPlay(false)
     if (audioRef.current) {
       audioRef.current.pause()
+      audioRef.current.currentTime = 0
     }
   }, [])
 
