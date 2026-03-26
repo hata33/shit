@@ -2,12 +2,25 @@
 
 import { useState, useEffect } from 'react'
 import confetti from 'canvas-confetti'
+import { ExplosionSVG } from './components/ExplosionSVG'
+import { ShockwaveSVG } from './components/ShockwaveSVG'
+import { FireExplosionSVG } from './components/FireExplosionSVG'
+import { CalendarView } from './components/CalendarView'
+import { TagSystem, TagFilter } from './components/TagSystem'
+import { RageClick } from './components/RageClick'
+import { AIAxiety } from './components/AIAxiety'
+import { useSoundEffects } from './hooks/useSoundEffects'
+import { useAchievements } from './hooks/useAchievements'
+
+type EffectType = 'confetti' | 'particles' | 'shockwave' | 'fire' | 'all'
+type ViewType = 'vent' | 'rage' | 'ai-anxiety' | 'calendar' | 'achievements'
 
 interface VentEntry {
   id: string
   timestamp: number
   content: string
   intensity: number
+  tags?: string[]
 }
 
 export default function Home() {
@@ -17,10 +30,103 @@ export default function Home() {
   const [isExploding, setIsExploding] = useState(false)
   const [isShaking, setIsShaking] = useState(false)
   const [isFlashing, setIsFlashing] = useState(false)
+  const [showSVGExplosion, setShowSVGExplosion] = useState(false)
+  const [showShockwave, setShowShockwave] = useState(false)
+  const [showFire, setShowFire] = useState(false)
+  const [effectType, setEffectType] = useState<EffectType>('all')
   const [filterIntensity, setFilterIntensity] = useState<number | null>(null)
+  const [filterTag, setFilterTag] = useState<string | null>(null)
   const [showHint, setShowHint] = useState(false)
   const [showEncouragement, setShowEncouragement] = useState(false)
   const [encouragementText, setEncouragementText] = useState('')
+  const [currentView, setCurrentView] = useState<ViewType>('vent')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
+  const [usedEffects, setUsedEffects] = useState<Set<string>>(new Set(['all']))
+
+  // Hooks
+  const { enabled: soundEnabled, toggleSound, playExplosion, playClick, playAchievement } = useSoundEffects()
+  const { achievements, showAchievement, checkAchievements } = useAchievements(vents)
+
+  // Handle rage click completion
+  const handleRageComplete = (angerValue: number, clickCount: number) => {
+    // Play sound based on anger value
+    playExplosion(Math.ceil(angerValue / 20))
+
+    // Create a vent entry for the rage session
+    const rageVent: VentEntry = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      content: `🤬 狂点发泄！\n点击次数: ${clickCount}\n愤怒值: ${angerValue}\n${angerValue >= 80 ? '气炸了！！！' : angerValue >= 60 ? '非常愤怒' : angerValue >= 40 ? '很生气' : angerValue >= 20 ? '有点生气' : '有点烦'}`,
+      intensity: Math.ceil(angerValue / 20),
+      tags: ['#狂点发泄'],
+    }
+    saveVents([rageVent, ...vents])
+
+    // Check achievements
+    checkAchievements(rageVent, usedEffects)
+
+    // Trigger explosion effects based on anger value
+    if (angerValue >= 50) {
+      triggerExplosion()
+    }
+
+    // Show encouragement
+    const encouragements = [
+      '发泄完了，感觉好点了吗？💪',
+      '深呼吸，冷静一下 😌',
+      '情绪释放出来就好！✨',
+    ]
+    setEncouragementText(encouragements[Math.floor(Math.random() * encouragements.length)])
+    setShowEncouragement(true)
+    setTimeout(() => setShowEncouragement(false), 3000)
+
+    // Switch back to vent view
+    setCurrentView('vent')
+  }
+
+  // Handle AI anxiety vent
+  const handleAIAxietyVent = (content: string, anxietyIntensity: number) => {
+    // Play click sound
+    playClick()
+
+    // Track used effects
+    setUsedEffects((prev) => new Set([...prev, effectType]))
+
+    // Trigger explosion
+    triggerExplosion()
+
+    // Play explosion sound
+    playExplosion(anxietyIntensity)
+
+    // Show encouragement
+    const encouragements = [
+      'AI是工具，你是主人！💪',
+      '你的价值AI无法替代！✨',
+      '深呼吸，焦虑是正常的 😌',
+      '每个人都有自己的独特价值 🌟',
+      'AI再强也没有你的创造力 🎨',
+    ]
+    setEncouragementText(encouragements[Math.floor(Math.random() * encouragements.length)])
+    setShowEncouragement(true)
+    setTimeout(() => setShowEncouragement(false), 3000)
+
+    // Save vent
+    const newVent: VentEntry = {
+      id: Date.now().toString(),
+      timestamp: Date.now(),
+      content,
+      intensity: anxietyIntensity,
+      tags: ['#AI焦虑'],
+    }
+    saveVents([newVent, ...vents])
+
+    // Check achievements
+    checkAchievements(newVent, usedEffects)
+
+    // Switch back to vent view
+    setCurrentView('vent')
+  }
 
   // Load vents from localStorage
   useEffect(() => {
@@ -102,57 +208,86 @@ export default function Home() {
     setIsShaking(true)
     setIsFlashing(true)
 
+    // Show effects based on selection
+    if (effectType === 'confetti' || effectType === 'all') {
+      // Original confetti effect
+      const particleCount = intensity * 50
+      const spread = intensity * 50
+
+      await confetti({
+        particleCount,
+        spread,
+        origin: { y: 0.6 },
+        colors: ['#ff0000', '#ff4400', '#ff8800', '#ffcc00', '#ffffff'],
+        disableForReducedMotion: true,
+        gravity: intensity * 0.2,
+        drift: intensity * 0.5,
+        scalar: intensity * 0.5,
+      })
+
+      setTimeout(() => {
+        confetti({
+          particleCount: particleCount / 2,
+          spread: spread * 1.5,
+          origin: { y: 0.7 },
+          colors: ['#ff0000', '#ff4400', '#ff8800'],
+          angle: 60,
+          disableForReducedMotion: true,
+        })
+      }, 200)
+
+      setTimeout(() => {
+        confetti({
+          particleCount: particleCount / 2,
+          spread: spread * 1.5,
+          origin: { y: 0.7 },
+          colors: ['#ff0000', '#ff4400', '#ff8800'],
+          angle: 120,
+          disableForReducedMotion: true,
+        })
+        setIsExploding(false)
+      }, 400)
+    }
+
+    if (effectType === 'particles' || effectType === 'all') {
+      setShowSVGExplosion(true)
+      setTimeout(() => setShowSVGExplosion(false), 800)
+    }
+
+    if (effectType === 'shockwave' || effectType === 'all') {
+      setShowShockwave(true)
+      setTimeout(() => setShowShockwave(false), 1000)
+    }
+
+    if (effectType === 'fire' || effectType === 'all') {
+      setShowFire(true)
+      setTimeout(() => setShowFire(false), 800)
+    }
+
+    if (effectType !== 'confetti') {
+      setTimeout(() => setIsExploding(false), 800)
+    }
+
     // Remove shake after animation
     setTimeout(() => setIsShaking(false), 500)
     setTimeout(() => setIsFlashing(false), 300)
-
-    // Intensity affects particle count and spread
-    const particleCount = intensity * 50
-    const spread = intensity * 50
-
-    await confetti({
-      particleCount,
-      spread,
-      origin: { y: 0.6 },
-      colors: ['#ff0000', '#ff4400', '#ff8800', '#ffcc00', '#ffffff'],
-      disableForReducedMotion: true,
-      gravity: intensity * 0.2,
-      drift: intensity * 0.5,
-      scalar: intensity * 0.5,
-    })
-
-    // Second wave
-    setTimeout(() => {
-      confetti({
-        particleCount: particleCount / 2,
-        spread: spread * 1.5,
-        origin: { y: 0.7 },
-        colors: ['#ff0000', '#ff4400', '#ff8800'],
-        angle: 60,
-        disableForReducedMotion: true,
-      })
-    }, 200)
-
-    // Third wave
-    setTimeout(() => {
-      confetti({
-        particleCount: particleCount / 2,
-        spread: spread * 1.5,
-        origin: { y: 0.7 },
-        colors: ['#ff0000', '#ff4400', '#ff8800'],
-        angle: 120,
-        disableForReducedMotion: true,
-      })
-      setIsExploding(false)
-    }, 400)
   }
 
   // Handle vent submit
   const handleVent = () => {
     if (!content.trim()) return
 
+    // Play click sound
+    playClick()
+
+    // Track used effects
+    setUsedEffects((prev) => new Set([...prev, effectType]))
+
     // Trigger explosion
     triggerExplosion()
+
+    // Play explosion sound
+    playExplosion(intensity)
 
     // Show encouragement
     const encouragements = [
@@ -177,11 +312,19 @@ export default function Home() {
       timestamp: Date.now(),
       content: content.trim(),
       intensity,
+      tags: selectedTags.length > 0 ? selectedTags : undefined,
     }
     saveVents([newVent, ...vents])
 
+    // Check achievements
+    const newAchievement = checkAchievements(newVent, usedEffects)
+    if (newAchievement) {
+      playAchievement()
+    }
+
     // Clear input
     setContent('')
+    setSelectedTags([])
   }
 
   // Delete vent
@@ -262,7 +405,25 @@ export default function Home() {
         <div className="fixed inset-0 pointer-events-none z-50 animate-flash bg-white" />
       )}
 
+      {/* SVG Effects */}
+      {showSVGExplosion && <ExplosionSVG intensity={intensity} />}
+      {showShockwave && <ShockwaveSVG intensity={intensity} />}
+      {showFire && <FireExplosionSVG intensity={intensity} />}
+
       <div className="container mx-auto px-4 py-8 max-w-2xl">
+        {/* Achievement Toast */}
+        {showAchievement && (
+          <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 animate-fade-in-up">
+            <div className="bg-gradient-to-r from-yellow-500 to-orange-500 text-white px-6 py-4 rounded-2xl shadow-2xl font-medium flex items-center gap-3">
+              <span className="text-4xl">{showAchievement.icon}</span>
+              <div>
+                <div className="font-bold">成就解锁！</div>
+                <div className="text-sm opacity-90">{showAchievement.title}</div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Encouragement Toast */}
         {showEncouragement && (
           <div className="fixed top-8 left-1/2 -translate-x-1/2 z-50 animate-fade-in-up">
@@ -273,15 +434,77 @@ export default function Home() {
         )}
 
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-white mb-2">
-            💥 发泄一下
-          </h1>
-          <p className="text-gray-300">写下你的烦恼，点击发泄，看着它爆炸！</p>
+        <div className="text-center mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <h1 className="text-2xl font-bold text-white">
+              💥 发泄一下
+            </h1>
+            <button
+              onClick={toggleSound}
+              className={`p-2 rounded-lg transition-all ${soundEnabled ? 'bg-blue-500/20 text-blue-300' : 'bg-gray-700 text-gray-400'}`}
+              title={soundEnabled ? '关闭音效' : '开启音效'}
+            >
+              {soundEnabled ? '🔊' : '🔇'}
+            </button>
+          </div>
+
+          {/* View Navigation */}
+          <div className="grid grid-cols-5 gap-2 mb-4">
+            <button
+              onClick={() => setCurrentView('vent')}
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-sm ${
+                currentView === 'vent'
+                  ? 'bg-red-500 text-white'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+              }`}
+            >
+              💬 发泄
+            </button>
+            <button
+              onClick={() => setCurrentView('rage')}
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-sm ${
+                currentView === 'rage'
+                  ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+              }`}
+            >
+              🤬 狂点
+            </button>
+            <button
+              onClick={() => setCurrentView('ai-anxiety')}
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-sm ${
+                currentView === 'ai-anxiety'
+                  ? 'bg-gradient-to-r from-purple-600 to-blue-500 text-white'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+              }`}
+            >
+              🤖 AI焦虑
+            </button>
+            <button
+              onClick={() => setCurrentView('calendar')}
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-sm ${
+                currentView === 'calendar'
+                  ? 'bg-red-500 text-white'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+              }`}
+            >
+              📅 日历
+            </button>
+            <button
+              onClick={() => setCurrentView('achievements')}
+              className={`py-2 px-2 rounded-lg font-medium transition-all text-sm ${
+                currentView === 'achievements'
+                  ? 'bg-red-500 text-white'
+                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+              }`}
+            >
+              🏆 成就
+            </button>
+          </div>
 
           {/* Streak Display */}
-          {getVentingStreak() > 0 && (
-            <div className="mt-4 inline-flex items-center gap-2 bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/30 rounded-full px-4 py-2">
+          {getVentingStreak() > 0 && currentView === 'vent' && (
+            <div className="inline-flex items-center gap-2 bg-gradient-to-r from-orange-500/20 to-red-500/20 border border-orange-500/30 rounded-full px-4 py-2">
               <span className="text-2xl">🔥</span>
               <span className="text-white font-bold">{getVentingStreak()} 天连续发泄</span>
             </div>
@@ -289,8 +512,9 @@ export default function Home() {
         </div>
 
         {/* Vent Input */}
-        <div className="bg-gray-800/50 backdrop-blur rounded-2xl p-6 mb-6 shadow-2xl border border-gray-700">
-          {/* Quick vent buttons */}
+        {currentView === 'vent' && (
+          <div className="bg-gray-800/50 backdrop-blur rounded-2xl p-6 mb-6 shadow-2xl border border-gray-700">
+            {/* Quick vent buttons */}
           <div className="flex gap-2 mb-3 flex-wrap items-center">
             <span className="text-xs text-gray-500 mr-1">快捷:</span>
             {['今天加班到很晚😤', '领导又画饼了🙄', '需求又变了😡', '不想干了😤', '周末还要开会🤬'].map((preset) => (
@@ -336,6 +560,63 @@ export default function Home() {
             </div>
           </div>
 
+          {/* Effect Selector */}
+          <div className="mt-4">
+            <label className="text-white text-sm mb-2 block">💥 爆炸特效</label>
+            <div className="grid grid-cols-5 gap-2">
+              <button
+                onClick={() => setEffectType('confetti')}
+                className={`px-2 py-2 text-xs rounded-lg transition-all ${
+                  effectType === 'confetti'
+                    ? 'bg-red-500 text-white scale-105'
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                🎊 彩带
+              </button>
+              <button
+                onClick={() => setEffectType('particles')}
+                className={`px-2 py-2 text-xs rounded-lg transition-all ${
+                  effectType === 'particles'
+                    ? 'bg-orange-500 text-white scale-105'
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                ✨ 粒子
+              </button>
+              <button
+                onClick={() => setEffectType('shockwave')}
+                className={`px-2 py-2 text-xs rounded-lg transition-all ${
+                  effectType === 'shockwave'
+                    ? 'bg-yellow-500 text-white scale-105'
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                💫 冲击波
+              </button>
+              <button
+                onClick={() => setEffectType('fire')}
+                className={`px-2 py-2 text-xs rounded-lg transition-all ${
+                  effectType === 'fire'
+                    ? 'bg-amber-600 text-white scale-105'
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                🔥 火焰
+              </button>
+              <button
+                onClick={() => setEffectType('all')}
+                className={`px-2 py-2 text-xs rounded-lg transition-all ${
+                  effectType === 'all'
+                    ? 'bg-gradient-to-r from-red-500 to-orange-500 text-white scale-105'
+                    : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                }`}
+              >
+                🚀 全部
+              </button>
+            </div>
+          </div>
+
           {/* Vent Button */}
           <button
             onClick={handleVent}
@@ -360,6 +641,24 @@ export default function Home() {
             <span>数字键 1-5 设置强度</span>
           </div>
         </div>
+        )}
+
+        {/* Tag System */}
+        {currentView === 'vent' && (
+          <div className="bg-gray-800/50 backdrop-blur rounded-2xl p-6 mb-6 border border-gray-700">
+            <TagSystem selectedTags={selectedTags} onTagsChange={setSelectedTags} />
+          </div>
+        )}
+
+        {/* Rage Click View */}
+        {currentView === 'rage' && (
+          <RageClick onRageComplete={handleRageComplete} />
+        )}
+
+        {/* AI Anxiety View */}
+        {currentView === 'ai-anxiety' && (
+          <AIAxiety onVent={handleAIAxietyVent} />
+        )}
 
         {/* Vent History */}
         <div className="space-y-4">
@@ -465,19 +764,37 @@ export default function Home() {
             ))}
           </div>
 
+          {/* Tag Filter */}
+          {vents.length > 0 && (
+            <TagFilter
+              availableTags={Array.from(new Set(vents.flatMap((v) => v.tags || [])))}
+              selectedFilter={filterTag}
+              onFilterChange={setFilterTag}
+            />
+          )}
+
           {vents.length === 0 ? (
             <div className="text-center text-gray-500 py-8">
               还没有发泄记录，快来发泄一下吧！
             </div>
           ) : (
             <>
-              {vents.filter((vent) => filterIntensity === null || vent.intensity === filterIntensity).length === 0 ? (
+              {vents
+                .filter((vent) => {
+                  const intensityMatch = filterIntensity === null || vent.intensity === filterIntensity
+                  const tagMatch = filterTag === null || (vent.tags && vent.tags.includes(filterTag))
+                  return intensityMatch && tagMatch
+                }).length === 0 ? (
                 <div className="text-center text-gray-500 py-8">
-                  {filterIntensity !== null ? '没有符合该强度的发泄记录' : '还没有发泄记录，快来发泄一下吧！'}
+                  {filterIntensity !== null || filterTag !== null ? '没有符合筛选条件的发泄记录' : '还没有发泄记录，快来发泄一下吧！'}
                 </div>
               ) : (
                 vents
-                  .filter((vent) => filterIntensity === null || vent.intensity === filterIntensity)
+                  .filter((vent) => {
+                    const intensityMatch = filterIntensity === null || vent.intensity === filterIntensity
+                    const tagMatch = filterTag === null || (vent.tags && vent.tags.includes(filterTag))
+                    return intensityMatch && tagMatch
+                  })
                   .map((vent) => (
                     <div
                       key={vent.id}
@@ -500,12 +817,138 @@ export default function Home() {
                         </div>
                       </div>
                       <p className="text-white whitespace-pre-wrap">{vent.content}</p>
+                      {vent.tags && vent.tags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {vent.tags.map((tag) => (
+                            <span
+                              key={tag}
+                              className="text-xs bg-gray-700/50 text-gray-400 px-2 py-1 rounded-full cursor-pointer hover:bg-gray-600"
+                              onClick={() => setFilterTag(filterTag === tag ? null : tag)}
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   ))
               )}
             </>
           )}
         </div>
+
+        {/* Calendar View */}
+        {currentView === 'calendar' && (
+          <div className="space-y-6">
+            <CalendarView
+              vents={vents}
+              onSelectDate={setSelectedDate}
+              selectedDate={selectedDate}
+            />
+
+            {/* Selected date vents */}
+            {selectedDate && (
+              <div className="bg-gray-800/50 backdrop-blur rounded-2xl p-6 border border-gray-700">
+                <h3 className="text-lg font-bold text-white mb-4">
+                  {selectedDate.toLocaleDateString('zh-CN')} 的发泄
+                </h3>
+                {vents
+                  .filter((v) => {
+                    const ventDate = new Date(v.timestamp)
+                    return (
+                      ventDate.getDate() === selectedDate.getDate() &&
+                      ventDate.getMonth() === selectedDate.getMonth() &&
+                      ventDate.getFullYear() === selectedDate.getFullYear()
+                    )
+                  })
+                  .map((vent) => (
+                    <div
+                      key={vent.id}
+                      className="bg-gray-900/50 rounded-xl p-4 mb-3 border border-gray-700"
+                    >
+                      <div className="flex justify-between items-start mb-2">
+                        <span className="text-xs text-gray-500">
+                          {new Date(vent.timestamp).toLocaleTimeString('zh-CN', {
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          强度: {'🔥'.repeat(vent.intensity)}
+                        </span>
+                      </div>
+                      <p className="text-white whitespace-pre-wrap">{vent.content}</p>
+                      {vent.tags && vent.tags.length > 0 && (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {vent.tags.map((tag) => (
+                            <span key={tag} className="text-xs bg-gray-700 text-gray-400 px-2 py-1 rounded-full">
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Achievements View */}
+        {currentView === 'achievements' && (
+          <div className="bg-gray-800/50 backdrop-blur rounded-2xl p-6 border border-gray-700">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-white">🏆 成就系统</h3>
+              <div className="text-sm text-gray-400">
+                已解锁: {achievements.filter((a) => a.unlocked).length} / {achievements.length}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {achievements.map((achievement) => (
+                <div
+                  key={achievement.id}
+                  className={`p-4 rounded-xl border transition-all ${
+                    achievement.unlocked
+                      ? 'bg-gradient-to-br from-yellow-500/20 to-orange-500/20 border-yellow-500/30'
+                      : 'bg-gray-900/50 border-gray-700 opacity-60'
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="text-3xl">{achievement.unlocked ? achievement.icon : '🔒'}</span>
+                    <div className="flex-1">
+                      <h4 className={`font-bold ${achievement.unlocked ? 'text-white' : 'text-gray-500'}`}>
+                        {achievement.title}
+                      </h4>
+                      <p className="text-xs text-gray-400 mt-1">{achievement.description}</p>
+
+                      {/* Progress bar */}
+                      {!achievement.unlocked && achievement.target > 1 && (
+                        <div className="mt-2">
+                          <div className="w-full bg-gray-700 rounded-full h-2">
+                            <div
+                              className="bg-yellow-500 h-2 rounded-full transition-all"
+                              style={{ width: `${(achievement.progress / achievement.target) * 100}%` }}
+                            />
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1">
+                            {achievement.progress} / {achievement.target}
+                          </div>
+                        </div>
+                      )}
+
+                      {achievement.unlocked && achievement.unlockedAt && (
+                        <div className="text-xs text-yellow-400 mt-1">
+                          解锁于 {new Date(achievement.unlockedAt).toLocaleDateString('zh-CN')}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )
