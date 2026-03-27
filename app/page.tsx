@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import confetti from 'canvas-confetti'
 import { ExplosionSVG } from './components/ExplosionSVG'
 import { ShockwaveSVG } from './components/ShockwaveSVG'
@@ -12,12 +12,12 @@ import { AIAxiety } from './components/AIAxiety'
 import { EmotionReport } from './components/EmotionReport'
 import { CanvasDraw } from './components/CanvasDraw'
 import { PuzzleGame } from './components/PuzzleGame'
-import { MusicPlayer } from './components/MusicPlayer'
+import { BubblePopper } from './components/BubblePopper'
 import { useSoundEffects } from './hooks/useSoundEffects'
 import { useAchievements } from './hooks/useAchievements'
 
 type EffectType = 'confetti' | 'particles' | 'shockwave' | 'fire' | 'all'
-type ViewType = 'vent' | 'rage' | 'draw' | 'ai-anxiety' | 'report' | 'calendar' | 'achievements' | 'puzzle' | 'music'
+type ViewType = 'vent' | 'rage' | 'draw' | 'ai-anxiety' | 'report' | 'calendar' | 'achievements' | 'puzzle' | 'bubble'
 
 interface VentEntry {
   id: string
@@ -208,38 +208,48 @@ export default function Home() {
     setCurrentView('vent')
   }
 
-  // Handle music complete
-  const handleMusicComplete = (data: any, intensity: number) => {
+  // Handle bubble popper complete
+  const handleBubbleComplete = (data: any, intensity: number) => {
     // Play click sound
     playClick()
 
-    // Create a vent entry for the music session
-    const musicVent: VentEntry = {
+    // Track used effects
+    setUsedEffects((prev) => new Set([...prev, effectType]))
+
+    // Trigger explosion if intensity is high
+    if (intensity >= 4) {
+      triggerExplosion()
+    }
+
+    // Play explosion sound
+    playExplosion(intensity)
+
+    // Create a vent entry for the bubble session
+    const bubbleVent: VentEntry = {
       id: Date.now().toString(),
       timestamp: Date.now(),
       content: data.content,
       intensity,
-      tags: ['#音乐发泄'],
+      tags: ['#挤泡泡'],
     }
 
-    // Save the music session
-    saveVents([musicVent, ...vents])
+    // Save the bubble session
+    saveVents([bubbleVent, ...vents])
 
     // Check achievements
-    checkAchievements(musicVent, usedEffects)
+    checkAchievements(bubbleVent, usedEffects)
 
     // Show encouragement
     const encouragements = [
-      '音乐是心灵的良药！🎵',
-      '希望音乐让你感觉好一些！✨',
-      '继续用音乐治愈自己吧！💪',
+      '泡泡挤完了，心情好点了吗？🫧',
+      '挤泡泡真的很解压！✨',
+      '再来一次吧！💪',
     ]
     setEncouragementText(encouragements[Math.floor(Math.random() * encouragements.length)])
     setShowEncouragement(true)
     setTimeout(() => setShowEncouragement(false), 3000)
 
-    // Switch back to vent view
-    setCurrentView('vent')
+    // Stay on bubble page - user can immediately play again
   }
 
   // Load vents from localStorage
@@ -566,7 +576,7 @@ export default function Home() {
           <div className="grid grid-cols-3 gap-2 mb-4">
             <button
               onClick={() => setCurrentView('vent')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+              className={`py-2.5 px-3 rounded-lg font-medium transition-all text-sm text-center ${
                 currentView === 'vent'
                   ? 'bg-red-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -576,7 +586,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setCurrentView('rage')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+              className={`py-2.5 px-3 rounded-lg font-medium transition-all text-sm text-center ${
                 currentView === 'rage'
                   ? 'bg-gradient-to-r from-red-600 to-orange-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -586,7 +596,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setCurrentView('draw')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+              className={`py-2.5 px-3 rounded-lg font-medium transition-all text-sm text-center ${
                 currentView === 'draw'
                   ? 'bg-gradient-to-r from-pink-600 to-purple-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -596,7 +606,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setCurrentView('ai-anxiety')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+              className={`py-2.5 px-3 rounded-lg font-medium transition-all text-sm text-center ${
                 currentView === 'ai-anxiety'
                   ? 'bg-gradient-to-r from-purple-600 to-blue-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -606,7 +616,7 @@ export default function Home() {
             </button>
             <button
               onClick={() => setCurrentView('puzzle')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+              className={`py-2.5 px-3 rounded-lg font-medium transition-all text-sm text-center ${
                 currentView === 'puzzle'
                   ? 'bg-gradient-to-r from-blue-600 to-cyan-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -615,20 +625,18 @@ export default function Home() {
               🧩 拼图
             </button>
             <button
-              onClick={() => setCurrentView('music')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
-                currentView === 'music'
-                  ? 'bg-gradient-to-r from-violet-600 to-fuchsia-500 text-white'
+              onClick={() => setCurrentView('bubble')}
+              className={`py-2.5 px-3 rounded-lg font-medium transition-all text-sm text-center ${
+                currentView === 'bubble'
+                  ? 'bg-gradient-to-r from-cyan-600 to-blue-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
               }`}
             >
-              🎵 音乐
+              ○ 挤泡泡
             </button>
-          </div>
-          <div className="grid grid-cols-3 gap-2">
             <button
               onClick={() => setCurrentView('report')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+              className={`py-2.5 px-3 rounded-lg font-medium transition-all text-sm text-center ${
                 currentView === 'report'
                   ? 'bg-gradient-to-r from-green-600 to-teal-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
@@ -638,9 +646,9 @@ export default function Home() {
             </button>
             <button
               onClick={() => setCurrentView('calendar')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+              className={`py-2.5 px-3 rounded-lg font-medium transition-all text-sm text-center ${
                 currentView === 'calendar'
-                  ? 'bg-red-500 text-white'
+                  ? 'bg-gradient-to-r from-amber-600 to-yellow-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
               }`}
             >
@@ -648,9 +656,9 @@ export default function Home() {
             </button>
             <button
               onClick={() => setCurrentView('achievements')}
-              className={`py-2 px-2 rounded-lg font-medium transition-all text-xs ${
+              className={`py-2.5 px-3 rounded-lg font-medium transition-all text-sm text-center ${
                 currentView === 'achievements'
-                  ? 'bg-red-500 text-white'
+                  ? 'bg-gradient-to-r from-yellow-600 to-orange-500 text-white'
                   : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
               }`}
             >
@@ -826,9 +834,9 @@ export default function Home() {
           <PuzzleGame onComplete={handlePuzzleComplete} />
         )}
 
-        {/* Music Player View */}
-        {currentView === 'music' && (
-          <MusicPlayer onComplete={handleMusicComplete} vents={vents} />
+        {/* Bubble Popper View */}
+        {currentView === 'bubble' && (
+          <BubblePopper onComplete={handleBubbleComplete} />
         )}
 
         {/* Emotion Report View */}

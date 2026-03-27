@@ -19,6 +19,7 @@ export function useMusicPlayer() {
   useEffect(() => {
     if (typeof window !== 'undefined') {
       audioRef.current = new Audio()
+      audioRef.current.crossOrigin = 'anonymous' // Handle CORS
       audioRef.current.volume = volume
 
       const audio = audioRef.current
@@ -28,7 +29,13 @@ export function useMusicPlayer() {
       }
 
       const handleEnded = () => {
-        playNext()
+        // Play next track when current ends
+        const nextIndex = (currentIndex + 1) % playlist.length
+        if (playlist.length > 0) {
+          setCurrentTrack(playlist[nextIndex])
+          setCurrentIndex(nextIndex)
+          setShouldPlay(true)
+        }
       }
 
       const handleCanPlay = () => {
@@ -36,24 +43,42 @@ export function useMusicPlayer() {
           audio.play().catch(err => {
             console.error('Play error:', err)
             setIsPlaying(false)
+            setShouldPlay(false)
           })
           setShouldPlay(false)
+        }
+      }
+
+      const handleError = (e: Event) => {
+        console.error('Audio error:', e)
+        const audio = e.target as HTMLAudioElement
+        console.error('Failed to load audio:', audio.src)
+
+        setIsPlaying(false)
+        setShouldPlay(false)
+
+        // Try to provide more helpful error info
+        if (audio.error) {
+          console.error('Audio error code:', audio.error.code)
+          console.error('Audio error message:', audio.error.message)
         }
       }
 
       audio.addEventListener('timeupdate', handleTimeUpdate)
       audio.addEventListener('ended', handleEnded)
       audio.addEventListener('canplay', handleCanPlay)
+      audio.addEventListener('error', handleError)
 
       return () => {
         audio.removeEventListener('timeupdate', handleTimeUpdate)
         audio.removeEventListener('ended', handleEnded)
         audio.removeEventListener('canplay', handleCanPlay)
+        audio.removeEventListener('error', handleError)
         audio.pause()
         audio.src = ''
       }
     }
-  }, [shouldPlay])
+  }, [shouldPlay, currentIndex, playlist])
 
   // Update volume
   useEffect(() => {

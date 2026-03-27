@@ -30,8 +30,29 @@ export function MusicPlayer({ onComplete, vents }: MusicPlayerProps) {
   } = useMusicPlayer()
 
   const [showRecommendations, setShowRecommendations] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
+  const [playError, setPlayError] = useState<string | null>(null)
 
   const recommendedTracks = getRecommendedMusic(vents)
+
+  const handlePlayTrack = (track: MusicTrack, index: number) => {
+    setIsLoading(true)
+    setPlayError(null)
+    playTrack(track, index)
+
+    // Clear loading after a delay, show error if still loading
+    setTimeout(() => {
+      if (isLoading) {
+        setIsLoading(false)
+        setPlayError('音频加载失败，请检查网络连接或尝试其他歌曲')
+      }
+    }, 5000)
+  }
+
+  const handleTogglePlay = () => {
+    setPlayError(null)
+    togglePlay()
+  }
 
   const handleTrackComplete = () => {
     const listenTime = currentTime
@@ -60,6 +81,13 @@ export function MusicPlayer({ onComplete, vents }: MusicPlayerProps) {
         >
           {showRecommendations ? '隐藏推荐' : '显示推荐'}
         </button>
+      </div>
+
+      {/* Info notice */}
+      <div className="mb-4 p-3 bg-blue-900/20 border border-blue-500/30 rounded-lg">
+        <p className="text-xs text-blue-300">
+          💡 音频来自外部 CDN，首次播放可能需要几秒钟加载。如果无法播放，可能是网络问题或音频源暂时不可用，请尝试其他歌曲。
+        </p>
       </div>
 
       {/* Mood Selector */}
@@ -100,8 +128,9 @@ export function MusicPlayer({ onComplete, vents }: MusicPlayerProps) {
             {recommendedTracks.map((track) => (
               <button
                 key={track.id}
-                onClick={() => playTrack(track, playlist.findIndex((t) => t.id === track.id))}
-                className="w-full text-left p-2 bg-gray-900/50 hover:bg-gray-800 rounded-lg transition-colors"
+                onClick={() => handlePlayTrack(track, playlist.findIndex((t) => t.id === track.id))}
+                className="w-full text-left p-2 bg-gray-900/50 hover:bg-gray-800 rounded-lg transition-colors disabled:opacity-50"
+                disabled={isLoading}
               >
                 <div className="text-white text-sm font-medium">{track.title}</div>
                 <div className="text-gray-400 text-xs">{track.artist}</div>
@@ -158,19 +187,26 @@ export function MusicPlayer({ onComplete, vents }: MusicPlayerProps) {
           <div className="flex items-center justify-center gap-4 mb-4">
             <button
               onClick={playPrevious}
-              className="p-3 text-gray-400 hover:text-white transition-colors"
+              className="p-3 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
               title="上一首"
+              disabled={isLoading}
             >
               <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 6h2v12H6zm3.5 6l8.5 6V6z" />
               </svg>
             </button>
             <button
-              onClick={togglePlay}
-              className={`p-4 rounded-full bg-gradient-to-r ${MOOD_CONFIGS[currentTrack.mood].color} text-white shadow-lg hover:scale-105 transition-all`}
+              onClick={handleTogglePlay}
+              className={`p-4 rounded-full bg-gradient-to-r ${MOOD_CONFIGS[currentTrack.mood].color} text-white shadow-lg hover:scale-105 transition-all disabled:opacity-50`}
               title={isPlaying ? '暂停' : '播放'}
+              disabled={isLoading}
             >
-              {isPlaying ? (
+              {isLoading ? (
+                <svg className="w-6 h-6 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+              ) : isPlaying ? (
                 <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" />
                 </svg>
@@ -182,14 +218,33 @@ export function MusicPlayer({ onComplete, vents }: MusicPlayerProps) {
             </button>
             <button
               onClick={playNext}
-              className="p-3 text-gray-400 hover:text-white transition-colors"
+              className="p-3 text-gray-400 hover:text-white transition-colors disabled:opacity-50"
               title="下一首"
+              disabled={isLoading}
             >
               <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
                 <path d="M6 18l8.5-6L6 6v12zM16 6v12h2V6h-2z" />
               </svg>
             </button>
           </div>
+
+          {/* Loading / Error Message */}
+          {isLoading && (
+            <div className="mb-4 text-center text-sm text-gray-400">
+              正在加载音频...
+            </div>
+          )}
+          {playError && (
+            <div className="mb-4 p-3 bg-red-900/30 border border-red-500/30 rounded-lg text-center text-sm text-red-400">
+              {playError}
+              <button
+                onClick={() => setPlayError(null)}
+                className="ml-2 text-red-300 hover:text-red-200"
+              >
+                ✕
+              </button>
+            </div>
+          )}
 
           {/* Volume Control */}
           <div className="flex items-center gap-2 mb-4">
@@ -239,8 +294,9 @@ export function MusicPlayer({ onComplete, vents }: MusicPlayerProps) {
             {playlist.map((track, index) => (
               <button
                 key={track.id}
-                onClick={() => playTrack(track, index)}
-                className="w-full text-left p-3 bg-gray-900/50 hover:bg-gray-800 rounded-xl transition-colors group"
+                onClick={() => handlePlayTrack(track, index)}
+                className="w-full text-left p-3 bg-gray-900/50 hover:bg-gray-800 rounded-xl transition-colors group disabled:opacity-50"
+                disabled={isLoading}
               >
                 <div className="flex items-center gap-3">
                   {track.coverImage && (

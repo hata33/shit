@@ -38,18 +38,43 @@ export function CanvasDraw({ onDrawingComplete }: CanvasDrawProps) {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    // Set canvas size
-    canvas.width = canvas.offsetWidth
-    canvas.height = 400
+    // Set canvas size with proper dimensions
+    const resizeCanvas = () => {
+      const rect = canvas.getBoundingClientRect()
+      canvas.width = rect.width
+      canvas.height = 400
 
-    // Fill with dark background
-    ctx.fillStyle = '#1a1a2e'
-    ctx.fillRect(0, 0, canvas.width, canvas.height)
+      // Fill with dark background
+      ctx.fillStyle = '#1a1a2e'
+      ctx.fillRect(0, 0, canvas.width, canvas.height)
+    }
+
+    // Initial resize
+    resizeCanvas()
+
+    // Handle window resize
+    const handleResize = () => {
+      // Save current content
+      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height)
+      resizeCanvas()
+      // Restore content (might be stretched/cropped but better than losing it)
+      ctx.putImageData(imageData, 0, 0)
+    }
+
+    window.addEventListener('resize', handleResize)
 
     // Load saved drawings from localStorage
     const saved = localStorage.getItem('drawings')
     if (saved) {
-      setDrawings(JSON.parse(saved))
+      try {
+        setDrawings(JSON.parse(saved))
+      } catch (e) {
+        console.error('Failed to load drawings:', e)
+      }
+    }
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
     }
   }, [])
 
@@ -67,8 +92,32 @@ export function CanvasDraw({ onDrawingComplete }: CanvasDrawProps) {
     }
   }
 
+  // Get coordinates from mouse or touch event
+  const getCoordinates = (e: React.MouseEvent | React.TouchEvent) => {
+    const canvas = canvasRef.current
+    if (!canvas) return { x: 0, y: 0 }
+
+    const rect = canvas.getBoundingClientRect()
+
+    if ('touches' in e) {
+      // Touch event
+      const touch = e.touches[0]
+      return {
+        x: touch.clientX - rect.left,
+        y: touch.clientY - rect.top,
+      }
+    } else {
+      // Mouse event
+      return {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      }
+    }
+  }
+
   // Start drawing
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
     setIsDrawing(true)
     saveState()
 
@@ -78,16 +127,15 @@ export function CanvasDraw({ onDrawingComplete }: CanvasDrawProps) {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const { x, y } = getCoordinates(e)
 
     ctx.beginPath()
     ctx.moveTo(x, y)
   }
 
   // Draw
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
+  const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
+    e.preventDefault()
     if (!isDrawing) return
 
     const canvas = canvasRef.current
@@ -96,9 +144,7 @@ export function CanvasDraw({ onDrawingComplete }: CanvasDrawProps) {
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const rect = canvas.getBoundingClientRect()
-    const x = e.clientX - rect.left
-    const y = e.clientY - rect.top
+    const { x, y } = getCoordinates(e)
 
     ctx.lineTo(x, y)
     ctx.strokeStyle = isEraser ? '#1a1a2e' : brushColor
@@ -109,7 +155,8 @@ export function CanvasDraw({ onDrawingComplete }: CanvasDrawProps) {
   }
 
   // Stop drawing
-  const stopDrawing = () => {
+  const stopDrawing = (e?: React.MouseEvent | React.TouchEvent) => {
+    if (e) e.preventDefault()
     setIsDrawing(false)
   }
 
@@ -240,6 +287,9 @@ export function CanvasDraw({ onDrawingComplete }: CanvasDrawProps) {
           onMouseMove={draw}
           onMouseUp={stopDrawing}
           onMouseLeave={stopDrawing}
+          onTouchStart={startDrawing}
+          onTouchMove={draw}
+          onTouchEnd={stopDrawing}
           className="w-full rounded-xl cursor-crosshair"
           style={{ touchAction: 'none' }}
         />
